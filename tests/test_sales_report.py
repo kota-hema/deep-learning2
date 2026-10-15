@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from sales_report import daily_metrics, load_sales_data
+from sales_report import _invoke_report_chain, daily_metrics, load_sales_data
 
 
 class SalesReportTests(unittest.TestCase):
@@ -41,6 +41,14 @@ class SalesReportTests(unittest.TestCase):
             self.assertEqual(set(files), {"one.csv", "two.xlsx"})
             self.assertEqual(metrics["sales_total"], 20.0)
             self.assertEqual(metrics["orders"], 2)
+
+    def test_ollama_connection_refused_has_setup_guidance(self):
+        class FailingChain:
+            def invoke(self, _input):
+                raise ConnectionRefusedError(111, "Connection refused")
+
+        with self.assertRaisesRegex(RuntimeError, "OLLAMA_BASE_URL"):
+            _invoke_report_chain(FailingChain(), {}, "Ollama")
 
 
 if __name__ == "__main__":
