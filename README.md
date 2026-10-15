@@ -28,6 +28,8 @@ Generate a report for the latest available sales date:
 python daily_report.py --provider Ollama
 ```
 
+If the selected LLM is unavailable or its credentials are missing, the dashboard and CLI still produce a metrics-only report and indicate that the AI narrative could not be generated.
+
 For OpenRouter, use `--provider OpenRouter` after setting `OPENROUTER_API_KEY` in `.env`. Reports are written to `reports/`. To run automatically, add a cron entry using absolute paths for this workspace and its virtual environment, for example:
 
 ```cron

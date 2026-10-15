@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import streamlit as st
 
-from sales_report import DATA_DIR, daily_metrics, daily_sales_series, generate_daily_report, load_sales_data
+from sales_report import (
+    DATA_DIR,
+    daily_metrics,
+    daily_sales_series,
+    generate_daily_report,
+    generate_metrics_report,
+    load_sales_data,
+)
 
 st.set_page_config(page_title="Daily Sales Report", page_icon="📈", layout="wide")
 st.title("Daily Sales Report")
@@ -58,12 +65,16 @@ if st.button("Generate report", type="primary"):
     with st.spinner(f"Generating report with {provider}…"):
         try:
             st.session_state["daily_report"] = generate_daily_report(metrics, provider)
-            st.session_state["report_error"] = None
+            st.session_state["report_warning"] = None
         except Exception as error:
-            st.session_state["report_error"] = str(error)
+            st.session_state["daily_report"] = generate_metrics_report(metrics)
+            st.session_state["report_warning"] = str(error)
 
-if st.session_state.get("report_error"):
-    st.error(st.session_state["report_error"])
+if st.session_state.get("report_warning"):
+    st.warning(
+        "AI narrative unavailable; showing a metrics-only report. "
+        + st.session_state["report_warning"]
+    )
 if st.session_state.get("daily_report"):
     st.markdown(st.session_state["daily_report"])
     st.download_button(

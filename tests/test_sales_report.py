@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from sales_report import _invoke_report_chain, daily_metrics, load_sales_data
+from sales_report import (
+    _invoke_report_chain,
+    daily_metrics,
+    generate_metrics_report,
+    load_sales_data,
+)
 
 
 class SalesReportTests(unittest.TestCase):
@@ -49,6 +54,21 @@ class SalesReportTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "OLLAMA_BASE_URL"):
             _invoke_report_chain(FailingChain(), {}, "Ollama")
+
+    def test_metrics_report_is_available_without_an_llm(self):
+        report = generate_metrics_report({
+            "date": "2025-01-01",
+            "sales_total": 20.0,
+            "orders": 2,
+            "average_order_value": 10.0,
+            "change_percent": 25.0,
+            "breakdowns": {"category": [{"name": "Furniture", "sales": 20.0}]},
+        })
+
+        self.assertIn("Daily Sales Report: 2025-01-01", report)
+        self.assertIn("Sales increased 25.0%", report)
+        self.assertIn("Top category by sales: Furniture", report)
+        self.assertIn("AI narrative unavailable", report)
 
 
 if __name__ == "__main__":

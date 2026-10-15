@@ -128,6 +128,47 @@ def _format_currency(value: float) -> str:
     return f"${value:,.2f}"
 
 
+def _render_daily_report(metrics: dict[str, Any], narrative: str) -> str:
+    change = (
+        f"{metrics['change_percent']:+.1f}%"
+        if metrics["change_percent"] is not None
+        else "not available"
+    )
+    return (
+        f"# Daily Sales Report: {metrics['date']}\n\n"
+        f"- **Sales:** {_format_currency(metrics['sales_total'])}\n"
+        f"- **Orders:** {metrics['orders']:,}\n"
+        f"- **Average order value:** {_format_currency(metrics['average_order_value'])}\n"
+        f"- **Change vs. previous day:** {change}\n\n"
+        f"{narrative}\n"
+    )
+
+
+def generate_metrics_report(metrics: dict[str, Any]) -> str:
+    """Create a data-only report when a language model is unavailable."""
+    observations: list[str] = []
+    if metrics["change_percent"] is None:
+        observations.append("Previous-day sales were unavailable for comparison.")
+    elif metrics["change_percent"] > 0:
+        observations.append(f"Sales increased {metrics['change_percent']:.1f}% from the previous day.")
+    elif metrics["change_percent"] < 0:
+        observations.append(f"Sales decreased {abs(metrics['change_percent']):.1f}% from the previous day.")
+    else:
+        observations.append("Sales were unchanged from the previous day.")
+
+    for label in ("category", "product", "region"):
+        items = metrics["breakdowns"].get(label, [])
+        if items:
+            top_item = items[0]
+            observations.append(
+                f"Top {label} by sales: {top_item['name']} ({_format_currency(top_item['sales'])})."
+            )
+
+    observations.append("AI narrative unavailable; this report contains calculated metrics only.")
+    narrative = "## Sales observations\n\n" + "\n".join(f"- {item}" for item in observations)
+    return _render_daily_report(metrics, narrative)
+
+
 def _invoke_report_chain(chain: Any, metrics: dict[str, Any], provider: str) -> Any:
     try:
         return chain.invoke({"metrics": json.dumps(metrics, ensure_ascii=True, indent=2)})
@@ -182,16 +223,4 @@ def generate_daily_report(metrics: dict[str, Any], provider: str) -> str:
     ])
     response = _invoke_report_chain(prompt | model, metrics, provider)
     narrative = str(response.content).strip()
-    change = (
-        f"{metrics['change_percent']:+.1f}%"
-        if metrics["change_percent"] is not None
-        else "not available"
-    )
-    return (
-        f"# Daily Sales Report: {metrics['date']}\n\n"
-        f"- **Sales:** {_format_currency(metrics['sales_total'])}\n"
-        f"- **Orders:** {metrics['orders']:,}\n"
-        f"- **Average order value:** {_format_currency(metrics['average_order_value'])}\n"
-        f"- **Change vs. previous day:** {change}\n\n"
-        f"{narrative}\n"
-    )
+    return _render_daily_report(metrics, narrative)

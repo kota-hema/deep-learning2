@@ -3,7 +3,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from sales_report import DATA_DIR, daily_metrics, generate_daily_report, load_sales_data
+from sales_report import (
+    DATA_DIR,
+    daily_metrics,
+    generate_daily_report,
+    generate_metrics_report,
+    load_sales_data,
+)
 
 
 def main() -> None:
@@ -16,7 +22,11 @@ def main() -> None:
     data, files = load_sales_data(DATA_DIR)
     report_date = args.date or data["_report_date"].max().date().isoformat()
     metrics = daily_metrics(data, report_date)
-    report = generate_daily_report(metrics, args.provider)
+    try:
+        report = generate_daily_report(metrics, args.provider)
+    except Exception:
+        report = generate_metrics_report(metrics)
+        print("AI narrative unavailable; generated a metrics-only report instead.")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     output_path = args.output_dir / f"sales-report-{metrics['date']}.md"
