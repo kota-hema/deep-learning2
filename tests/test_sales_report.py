@@ -81,6 +81,23 @@ class SalesReportTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "OLLAMA_BASE_URL"):
             _invoke_report_chain(FailingChain(), {}, "Ollama")
 
+    def test_ollama_connection_error_is_retried_once(self):
+        class FailsOnceChain:
+            calls = 0
+
+            def invoke(self, _input):
+                self.calls += 1
+                if self.calls == 1:
+                    raise OSError(99, "Cannot assign requested address")
+                return "report response"
+
+        chain = FailsOnceChain()
+
+        response = _invoke_report_chain(chain, {}, "Ollama")
+
+        self.assertEqual(response, "report response")
+        self.assertEqual(chain.calls, 2)
+
     def test_metrics_report_is_available_without_an_llm(self):
         report = generate_metrics_report({
             "date": "2025-01-01",

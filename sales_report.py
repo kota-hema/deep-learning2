@@ -199,22 +199,36 @@ def generate_metrics_report(metrics: dict[str, Any]) -> str:
 
 
 def _invoke_report_chain(chain: Any, metrics: dict[str, Any], provider: str) -> Any:
-    try:
-        return chain.invoke({"metrics": json.dumps(metrics, ensure_ascii=True, indent=2)})
-    except Exception as error:
-        if provider != "Ollama" or "connection refused" not in str(error).lower():
-            raise
-        import os
+    request = {"metrics": json.dumps(metrics, ensure_ascii=True, indent=2)}
+    for attempt in range(2):
+        try:
+            return chain.invoke(request)
+        except Exception as error:
+            message = str(error).lower()
+            connection_failure = any(
+                reason in message
+                for reason in (
+                    "connection refused",
+                    "cannot assign requested address",
+                    "network is unreachable",
+                )
+            )
+            if provider != "Ollama" or not connection_failure:
+                raise
+            if attempt == 0:
+                continue
 
-        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        model_name = os.getenv("OLLAMA_MODEL", "llama3.2")
-        raise RuntimeError(
-            f"Cannot connect to Ollama at {base_url}. Start Ollama and install the model "
-            f"with `ollama pull {model_name}`. If Ollama runs outside this container, "
-            "set OLLAMA_BASE_URL in .env to an address this app can reach; localhost "
-            "refers to the app's container. Alternatively, choose OpenRouter and set "
-            "OPENROUTER_API_KEY in .env."
-        ) from error
+            import os
+
+            base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+            model_name = os.getenv("OLLAMA_MODEL", "llama3.2")
+            raise RuntimeError(
+                f"Cannot connect to Ollama at {base_url} after retry. Start Ollama and "
+                f"install the model with `ollama pull {model_name}`. If Ollama runs "
+                "outside this container, set OLLAMA_BASE_URL in .env to an address "
+                "this app can reach. Alternatively, choose OpenRouter and set "
+                "OPENROUTER_API_KEY in .env."
+            ) from error
 
 
 def generate_daily_report(metrics: dict[str, Any], provider: str) -> str:
@@ -242,7 +256,7 @@ def generate_daily_report(metrics: dict[str, Any], provider: str) -> str:
 
         model = ChatOllama(
             model=os.getenv("OLLAMA_MODEL", "llama3.2"),
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
             temperature=0.2,
         )
 
