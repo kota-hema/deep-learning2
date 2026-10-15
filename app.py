@@ -9,33 +9,47 @@ from sales_report import (
     generate_daily_report,
     generate_metrics_report,
     load_sales_data,
+    load_uploaded_sales_data,
 )
 
 st.set_page_config(page_title="Daily Sales Report", page_icon="📈", layout="wide")
 st.title("Daily Sales Report")
 
+with st.sidebar:
+    st.header("Report settings")
+    uploaded_files = st.file_uploader(
+        "Upload sales files",
+        type=["csv", "xlsx", "xlsm"],
+        accept_multiple_files=True,
+    )
+    provider = st.radio("Language model", ["Ollama", "OpenRouter"])
+    st.caption("Ollama must be running locally. OpenRouter uses the key in `.env`.")
+
 try:
-    sales_data, source_files = load_sales_data()
+    if uploaded_files:
+        sales_data, source_files = load_uploaded_sales_data(uploaded_files)
+        source_label = "Uploaded files"
+    else:
+        sales_data, source_files = load_sales_data()
+        source_label = str(DATA_DIR.relative_to(DATA_DIR.parent))
 except (ValueError, OSError, ImportError) as error:
     st.error(str(error))
     st.stop()
 
-st.caption(f"Loaded {len(source_files)} file(s) from `{DATA_DIR.relative_to(DATA_DIR.parent)}/`: {', '.join(source_files)}")
 available_dates = sorted(sales_data["_report_date"].dropna().dt.date.unique())
 if not available_dates:
     st.error("No valid sales dates were found in the data files.")
     st.stop()
 
 with st.sidebar:
-    st.header("Report settings")
     report_date = st.selectbox(
         "Sales date",
         options=available_dates,
         index=len(available_dates) - 1,
         format_func=lambda value: value.strftime("%B %d, %Y"),
     )
-    provider = st.radio("Language model", ["Ollama", "OpenRouter"])
-    st.caption("Ollama must be running locally. OpenRouter uses the key in `.env`.")
+
+st.caption(f"Using {source_label}: {', '.join(source_files)}")
 
 metrics = daily_metrics(sales_data, report_date)
 first, second, third, fourth = st.columns(4)

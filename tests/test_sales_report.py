@@ -1,3 +1,4 @@
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,7 +10,14 @@ from sales_report import (
     daily_metrics,
     generate_metrics_report,
     load_sales_data,
+    load_uploaded_sales_data,
 )
+
+
+class UploadedBytes(io.BytesIO):
+    def __init__(self, name, contents):
+        super().__init__(contents)
+        self.name = name
 
 
 class SalesReportTests(unittest.TestCase):
@@ -46,6 +54,24 @@ class SalesReportTests(unittest.TestCase):
             self.assertEqual(set(files), {"one.csv", "two.xlsx"})
             self.assertEqual(metrics["sales_total"], 20.0)
             self.assertEqual(metrics["orders"], 2)
+
+    def test_loads_uploaded_csv_and_excel_files_without_saving(self):
+        csv_file = UploadedBytes(
+            "external.csv",
+            b"Date,Revenue\n2025-01-01,12.50\n",
+        )
+        excel_contents = io.BytesIO()
+        pd.DataFrame({"Order Date": ["2025-01-01"], "Sales": [7.5]}).to_excel(
+            excel_contents, index=False
+        )
+        excel_file = UploadedBytes("external.xlsx", excel_contents.getvalue())
+
+        data, files = load_uploaded_sales_data([csv_file, excel_file])
+        metrics = daily_metrics(data, "2025-01-01")
+
+        self.assertEqual(set(files), {"external.csv", "external.xlsx"})
+        self.assertEqual(metrics["sales_total"], 20.0)
+        self.assertEqual(metrics["orders"], 2)
 
     def test_ollama_connection_refused_has_setup_guidance(self):
         class FailingChain:

@@ -18,7 +18,7 @@ Set provider values in the root `.env` file. The project includes a blank, git-i
 streamlit run app.py
 ```
 
-Put additional `.csv`, `.xlsx`, or `.xlsm` sales files in `data/`. The loader combines files that contain a recognizable date column (for example `Order Date`) and sales amount column (for example `Sales` or `Revenue`). The dashboard shows the latest available date by default; choose another date in the sidebar to review it.
+Put additional `.csv`, `.xlsx`, or `.xlsm` sales files in `data/`, or upload them with **Upload sales files** in the dashboard sidebar. When files are uploaded, the dashboard uses those files instead of the local `data/` folder; uploads are processed in memory and are not saved to disk. The loader combines files that contain a recognizable date column (for example `Order Date`) and sales amount column (for example `Sales` or `Revenue`). The dashboard shows the latest available date by default; choose another date in the sidebar to review it.
 
 ## Daily automation
 

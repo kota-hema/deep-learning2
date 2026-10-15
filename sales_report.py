@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 import json
 import re
 from pathlib import Path
@@ -30,24 +31,18 @@ def _read_file(path: Path) -> pd.DataFrame:
     return pd.read_excel(path)
 
 
-def load_sales_data(directory: Path = DATA_DIR) -> tuple[pd.DataFrame, list[str]]:
-    """Load and normalize sales rows from supported files in a directory."""
-    files = sorted(
-        path for path in directory.iterdir()
-        if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES
-    ) if directory.exists() else []
-    if not files:
-        raise ValueError(f"No CSV or Excel files found in {directory}.")
-
+def _normalize_sales_frames(
+    sources: Iterable[tuple[str, pd.DataFrame]], empty_message: str
+) -> tuple[pd.DataFrame, list[str]]:
     frames: list[pd.DataFrame] = []
     used_files: list[str] = []
     skipped: list[str] = []
-    for path in files:
-        frame = _read_file(path)
+    for filename, source_frame in sources:
+        frame = source_frame
         date_column = _find_column(list(frame.columns), DATE_COLUMNS)
         sales_column = _find_column(list(frame.columns), SALES_COLUMNS)
         if date_column is None or sales_column is None:
-            skipped.append(path.name)
+            skipped.append(filename)
             continue
 
         frame = frame.copy()
@@ -58,18 +53,52 @@ def load_sales_data(directory: Path = DATA_DIR) -> tuple[pd.DataFrame, list[str]
         frame["_sales_value"] = pd.to_numeric(amount, errors="coerce")
         frame = frame.dropna(subset=["_report_date", "_sales_value"])
         if not frame.empty:
-            frame["_source_file"] = path.name
+            frame["_source_file"] = filename
             frames.append(frame)
-            used_files.append(path.name)
+            used_files.append(filename)
 
     if not frames:
         detail = f" Files without recognizable date and sales columns: {', '.join(skipped)}." if skipped else ""
         raise ValueError(
-            "No usable sales rows found. Expected date columns such as 'Order Date' "
+            f"{empty_message} Expected date columns such as 'Order Date' "
             f"and amount columns such as 'Sales' or 'Revenue'.{detail}"
         )
 
     return pd.concat(frames, ignore_index=True, sort=False), used_files
+
+
+def load_sales_data(directory: Path = DATA_DIR) -> tuple[pd.DataFrame, list[str]]:
+    """Load and normalize sales rows from supported files in a directory."""
+    files = sorted(
+        path for path in directory.iterdir()
+        if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES
+    ) if directory.exists() else []
+    if not files:
+        raise ValueError(f"No CSV or Excel files found in {directory}.")
+
+    sources = ((path.name, _read_file(path)) for path in files)
+    return _normalize_sales_frames(sources, "No usable sales rows found.")
+
+
+def load_uploaded_sales_data(uploaded_files: Iterable[Any]) -> tuple[pd.DataFrame, list[str]]:
+    """Load uploaded CSV or Excel file-like objects without saving them to disk."""
+    sources = []
+    for uploaded_file in uploaded_files:
+        filename = Path(uploaded_file.name).name
+        suffix = Path(filename).suffix.lower()
+        if suffix not in SUPPORTED_SUFFIXES:
+            raise ValueError(f"Unsupported file type for {filename}. Upload CSV or Excel files.")
+
+        uploaded_file.seek(0)
+        if suffix == ".csv":
+            frame = pd.read_csv(uploaded_file)
+        else:
+            frame = pd.read_excel(uploaded_file)
+        sources.append((filename, frame))
+
+    if not sources:
+        raise ValueError("Upload at least one CSV or Excel sales file.")
+    return _normalize_sales_frames(sources, "No usable rows found in the uploaded files.")
 
 
 def daily_metrics(data: pd.DataFrame, report_date: Any) -> dict[str, Any]:
